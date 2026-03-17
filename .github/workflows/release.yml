@@ -16,6 +16,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Show repo files
+        run: |
+          echo "Tag: $GITHUB_REF"
+          echo "Ref name: $GITHUB_REF_NAME"
+          pwd
+          ls -la
+
       - name: Prepare addon folder
         run: |
           rm -rf package
@@ -25,16 +32,30 @@ jobs:
           cp JacobsChannelCastBar.txt package/JacobsChannelCastBar/
           cp JacobsChannelCastBar_Settings.lua package/JacobsChannelCastBar/
 
+          echo "Package contents:"
+          find package -maxdepth 3 -type f | sort
+
       - name: Build zip
         run: |
           cd package
           zip -r ../JacobsChannelCastBar.zip JacobsChannelCastBar
+          cd ..
+          echo "Built files:"
+          ls -lh
+          unzip -l JacobsChannelCastBar.zip
 
-      - name: Create GitHub Release
+      - name: Upload build artifact (debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: JacobsChannelCastBar-zip
+          path: JacobsChannelCastBar.zip
+
+      - name: Create or update release and upload asset
         uses: softprops/action-gh-release@v2
         with:
           files: JacobsChannelCastBar.zip
-          generate_release_notes: true
           name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
