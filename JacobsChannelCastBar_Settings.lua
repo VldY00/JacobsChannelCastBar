@@ -78,22 +78,6 @@ function JCCB:RegisterSettings()
         },
 
         {
-            type = "editbox",
-            name = "Custom Ability IDs",
-            tooltip = "Add extra skill IDs here. One per line, or separated by commas/spaces.",
-            isMultiline = true,
-            getFunc = function()
-                return JCCB.sv.customAbilityIdsText
-            end,
-            setFunc = function(v)
-                JCCB.sv.customAbilityIdsText = v or ""
-                JCCB:RebuildWhitelist()
-            end,
-            default = JCCB.defaults.customAbilityIdsText,
-            width = "full",
-        },
-
-        {
             type = "checkbox",
             name = "Debug Chat Output",
             getFunc = function() return JCCB.sv.debug end,
@@ -243,14 +227,6 @@ function JCCB:RegisterSettings()
                 JCCB.sv.x = 0
                 JCCB.sv.y = 200
                 JCCB:RestorePosition()
-            end,
-            width = "half",
-        },
-        {
-            type = "button",
-            name = "Reload Whitelist",
-            func = function()
-                JCCB:RebuildWhitelist()
             end,
             width = "half",
         },

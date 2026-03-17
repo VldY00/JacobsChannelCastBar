@@ -2,7 +2,7 @@ JacobsChannelCastBar = JacobsChannelCastBar or {}
 local JCCB = JacobsChannelCastBar
 
 JCCB.name = "JacobsChannelCastBar"
-JCCB.version = "0.9.1"
+JCCB.version = "1.0.0"
 
 JCCB.defaults = {
     enabled = true,
@@ -16,11 +16,11 @@ JCCB.defaults = {
     scale = 1.0,
     alpha = 1.0,
 
-    reverseFill = false,
+    reverseFill = true,
     showName = false,
     showTimer = false,
     showBackground = true,
-    fontSize = 12,
+    fontSize = 18,
 
     showIcon = true,
     colorBrightness = 1.0,
@@ -28,14 +28,13 @@ JCCB.defaults = {
     debug = false,
     scanMode = false,
 
-    customAbilityIdsText = [[
-]],
-
     bgR = 0.05,
     bgG = 0.05,
     bgB = 0.05,
     bgA = 0.75,
 }
+
+JCCB.MIN_CHANNEL_MS = 2000
 
 JCCB.sv = nil
 
@@ -54,9 +53,6 @@ JCCB.castStartMs = 0
 JCCB.castEndMs = 0
 JCCB.castDurationMs = 0
 JCCB.lastStartStamp = 0
-
-JCCB.whitelistIds = {}
-JCCB.customIds = {}
 
 local STOP_RESULTS = {
     [ACTION_RESULT_INTERRUPT] = true,
@@ -79,101 +75,6 @@ local function Clamp(v, minV, maxV)
     if v < minV then return minV end
     if v > maxV then return maxV end
     return v
-end
-
-local function AddRanks(tbl, ...)
-    for i = 1, select("#", ...) do
-        local id = select(i, ...)
-        if type(id) == "number" and id > 0 then
-            tbl[id] = true
-        end
-    end
-end
-
-JCCB.BUILTIN_IDS = {}
-do
-    local T = JCCB.BUILTIN_IDS
-
-    -- ARCANIST
-    AddRanks(T, 193398, 193331, 193397)
-    AddRanks(T, 185805, 183122, 196366)
-    AddRanks(T, 183537, 186366)
-
-    -- DRAGONKNIGHT
-    AddRanks(T,
-        20930, 31104
-    )
-
-    -- TEMPLAR: Jabs
-    AddRanks(T, 26114, 27179, 27182, 27186)
-    AddRanks(T, 26792, 27189, 27193, 27197)
-    AddRanks(T, 26797, 27201, 27204, 27207)
-
-    -- TEMPLAR: Radiant
-    AddRanks(T, 63029, 63054, 63056, 63058)
-    AddRanks(T, 63044, 63060, 63063, 63066)
-    AddRanks(T, 63046, 63069, 63072, 63075)
-
-    -- TEMPLAR: Healing Ritual line
-    AddRanks(T, 22304, 27334, 27340, 27342)
-    AddRanks(T, 22314, 27368, 27372, 27376)
-    AddRanks(T, 22327, 27346, 27349, 27352)
-
-    -- TEMPLAR: Rite of Passage line
-    AddRanks(T, 22223, 27388, 27392, 27396)
-    AddRanks(T, 22226, 27419, 27423, 27427)
-    AddRanks(T, 22229, 27401, 27407, 27413)
-
-    -- SOUL MAGIC
-    AddRanks(T, 39270, 43089, 43091, 43093)
-    AddRanks(T, 40420, 43095, 43097, 43099)
-    AddRanks(T, 40414, 43101, 43105, 43109)
-
-    -- DUAL WIELD
-    AddRanks(T, 28607, 40578, 40580, 40582)
-    AddRanks(T, 38857, 40584, 40587, 40590)
-    AddRanks(T, 38846, 40593, 40596, 40599)
-
-    -- VAMPIRE
-    AddRanks(T, 32893, 41864, 41865, 41866)
-    AddRanks(T, 38949, 41900, 41901, 41902)
-    AddRanks(T, 38956, 41879, 41880, 41881)
-end
-
-function JCCB:ParseCustomIds()
-    self.customIds = {}
-
-    local raw = self.sv.customAbilityIdsText or ""
-    if raw == "" then return end
-
-    for token in string.gmatch(raw, "%d+") do
-        local id = tonumber(token)
-        if id and id > 0 then
-            self.customIds[id] = true
-        end
-    end
-end
-
-function JCCB:RebuildWhitelist()
-    self.whitelistIds = {}
-
-    for id, enabled in pairs(self.BUILTIN_IDS) do
-        if enabled then
-            self.whitelistIds[id] = true
-        end
-    end
-
-    self:ParseCustomIds()
-
-    for id, enabled in pairs(self.customIds) do
-        if enabled then
-            self.whitelistIds[id] = true
-        end
-    end
-end
-
-function JCCB:IsWhitelistedId(abilityId)
-    return abilityId and self.whitelistIds[abilityId] == true
 end
 
 function JCCB:ResolveSlotAbilityId(slotNum, hotbarCategory)
@@ -201,12 +102,13 @@ function JCCB:GetAbilityCastData(abilityId)
 end
 
 function JCCB:IsTrackableAbility(abilityId)
-    if not self:IsWhitelistedId(abilityId) then
-        return false, false, 0
+    local isChanneled, durationMs = self:GetAbilityCastData(abilityId)
+
+    if not isChanneled then
+        return false, isChanneled, durationMs
     end
 
-    local isChanneled, durationMs = self:GetAbilityCastData(abilityId)
-    if durationMs <= 0 then
+    if durationMs < self.MIN_CHANNEL_MS then
         return false, isChanneled, durationMs
     end
 
@@ -438,7 +340,7 @@ function JCCB:StartCast(abilityId, abilityName, durationMs)
 
     local now = GetGameTimeMilliseconds()
 
-    -- Анти-спам: если этот же channel уже идёт, не рестартуем бар вообще.
+    -- анти-спам: если тот же channel уже идёт, не рестартуем
     if self.isCasting and self.castAbilityId == abilityId and now < self.castEndMs then
         if self.sv.debug then
             dmsg(string.format("IGNORE restart spam for %s [%d]", tostring(abilityName), abilityId))
@@ -532,11 +434,11 @@ function JCCB:OnUpdate()
     end
 end
 
-function JCCB:DebugScan(slotNum, slotType, rawId, abilityId, abilityName, isChanneled, durationMs, whitelisted)
+function JCCB:DebugScan(slotNum, slotType, rawId, abilityId, abilityName, isChanneled, durationMs, trackable)
     if not self.sv.scanMode then return end
 
     dmsg(string.format(
-        "SCAN slot=%s slotType=%s rawId=%s resolvedId=%s name=%s chan=%s dur=%s white=%s",
+        "SCAN slot=%s slotType=%s rawId=%s resolvedId=%s name=%s chan=%s dur=%s trackable=%s",
         tostring(slotNum),
         tostring(slotType),
         tostring(rawId),
@@ -544,7 +446,7 @@ function JCCB:DebugScan(slotNum, slotType, rawId, abilityId, abilityName, isChan
         tostring(abilityName),
         tostring(isChanneled),
         tostring(durationMs),
-        tostring(whitelisted)
+        tostring(trackable)
     ))
 end
 
@@ -553,7 +455,7 @@ function JCCB:OnActionSlotAbilityUsed(eventCode, slotNum)
     local abilityId, rawId, slotType = self:ResolveSlotAbilityId(slotNum, hotbarCategory)
     local abilityName = abilityId and GetAbilityName(abilityId) or "nil"
     local isChanneled, durationMs = self:GetAbilityCastData(abilityId)
-    local whitelisted = self:IsWhitelistedId(abilityId)
+    local trackable = self:IsTrackableAbility(abilityId)
 
     if self.sv.debug then
         dmsg(string.format(
@@ -562,15 +464,15 @@ function JCCB:OnActionSlotAbilityUsed(eventCode, slotNum)
         ))
     end
 
-    self:DebugScan(slotNum, slotType, rawId, abilityId, abilityName, isChanneled, durationMs, whitelisted)
+    self:DebugScan(slotNum, slotType, rawId, abilityId, abilityName, isChanneled, durationMs, trackable)
 
     if not self.sv.enabled then return end
     if self.sv.unlocked then return end
     if not abilityId or abilityId == 0 then return end
 
-    local trackable
-    trackable, isChanneled, durationMs = self:IsTrackableAbility(abilityId)
-    if not trackable then
+    local ok
+    ok, isChanneled, durationMs = self:IsTrackableAbility(abilityId)
+    if not ok then
         return
     end
 
@@ -603,7 +505,6 @@ end
 
 function JCCB:InitializeSavedVars()
     self.sv = ZO_SavedVars:NewAccountWide("JacobsChannelCastBar_SavedVars", 1, nil, self.defaults)
-    self:RebuildWhitelist()
 end
 
 function JCCB:RegisterEvents()
@@ -659,15 +560,7 @@ function JCCB:RegisterSlashCommands()
     end
 
     SLASH_COMMANDS["/jccbtest"] = function()
-        self:StartCast(193331, "Fatecarver", 4500)
-    end
-
-    SLASH_COMMANDS["/jccbids"] = function()
-        local count = 0
-        for _ in pairs(self.whitelistIds) do
-            count = count + 1
-        end
-        dmsg("Whitelist IDs loaded: " .. tostring(count))
+        self:StartCast(1, "Test Channel", 4500)
     end
 end
 
