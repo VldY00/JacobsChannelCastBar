@@ -95,15 +95,13 @@ do
     local T = JCCB.BUILTIN_IDS
 
     -- ARCANIST
-    AddRanks(T,
-        193398,
-        193331,
-        193397
-    )
+    AddRanks(T, 193398, 193331, 193397)
+    AddRanks(T, 185805, 183122, 196366)
+    AddRanks(T, 183537)
 
     -- DRAGONKNIGHT
     AddRanks(T,
-        20930
+        20930, 31104
     )
 
     -- TEMPLAR: Jabs
