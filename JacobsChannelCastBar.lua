@@ -97,7 +97,7 @@ do
     -- ARCANIST
     AddRanks(T, 193398, 193331, 193397)
     AddRanks(T, 185805, 183122, 196366)
-    AddRanks(T, 183537)
+    AddRanks(T, 183537, 186366)
 
     -- DRAGONKNIGHT
     AddRanks(T,
