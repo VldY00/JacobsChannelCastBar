@@ -1,5 +1,5 @@
 ## Title: JacobsChannelCastBar
-## Author: Jacobs
+## Author: @iJAcoBS
 ## Version: 0.2.0
 ## APIVersion: 101047
 ## SavedVariables: JacobsChannelCastBar_SavedVars
